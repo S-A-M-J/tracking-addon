@@ -74,6 +74,15 @@ def next_run_at(hour: int, minute: int, tz: ZoneInfo) -> dt.datetime:
     return candidate
 
 
+def fetch_all_entity_ids(headers: dict) -> list[str]:
+    """Fetch all entity IDs from Home Assistant."""
+    url = f"{SUPERVISOR_URL}/core/api/states"
+    states = http_get_json(url, headers=headers, timeout=60)
+    entity_ids = [s["entity_id"] for s in states]
+    logger.info("Found %d entities", len(entity_ids))
+    return entity_ids
+
+
 def fetch_history(headers: dict, start: dt.datetime, end: dt.datetime):
     # Use UTC and URL-encode timestamps to avoid issues with + in timezone offsets
     start_utc = start.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
@@ -82,10 +91,19 @@ def fetch_history(headers: dict, start: dt.datetime, end: dt.datetime):
     start_encoded = urllib.parse.quote(start_utc, safe="")
     end_encoded = urllib.parse.quote(end_utc, safe="")
 
-    request_url = f"{SUPERVISOR_URL}/core/api/history/period/{start_encoded}?end_time={end_encoded}"
+    # Fetch all entity IDs and pass as filter
+    entity_ids = fetch_all_entity_ids(headers)
+    filter_str = ",".join(entity_ids)
+    filter_encoded = urllib.parse.quote(filter_str, safe="")
+
+    request_url = (
+        f"{SUPERVISOR_URL}/core/api/history/period/{start_encoded}"
+        f"?end_time={end_encoded}"
+        f"&filter_entity_id={filter_encoded}"
+    )
 
     logger.info("Fetching history window: %s -> %s", start_utc, end_utc)
-    logger.info("Request URL: %s", request_url)
+    logger.info("Request URL length: %d chars", len(request_url))
     return http_get_json(request_url, headers=headers, timeout=300)
 
 
