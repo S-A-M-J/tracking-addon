@@ -34,6 +34,11 @@ def load_options() -> dict:
         if key not in data:
             raise ValueError(f"Missing required option: {key}")
 
+    # Enforce upload_hour is between 0 and 23
+    upload_hour = data.get("upload_hour")
+    if not isinstance(upload_hour, int) or not (0 <= upload_hour <= 23):
+        raise ValueError("upload_hour must be an integer between 0 and 23")
+
     return data
 
 
@@ -163,8 +168,75 @@ def run_once(options: dict, headers: dict, tz: ZoneInfo):
     )
 
 
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/manual_export":
+            self.handle_manual_export()
+        elif self.path == "/test_endpoint":
+            self.handle_test_endpoint()
+        else:
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b"Not found")
+
+    def handle_manual_export(self):
+        try:
+            options = load_options()
+            headers = supervisor_headers()
+            tz = get_homeassistant_timezone(headers)
+            run_once(options, headers, tz)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Manual export triggered successfully.")
+        except Exception as exc:
+            logger.exception("Manual export failed: %s", exc)
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(f"Manual export failed: {exc}".encode())
+
+    def handle_test_endpoint(self):
+        try:
+            options = load_options()
+            # Only test the endpoint, don't send real data
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {options['destination_key']}"
+            }
+            data = json.dumps({"test": True}).encode("utf-8")
+            request = urllib.request.Request(
+                url=options["destination_url"],
+                headers=headers,
+                data=data,
+                method="POST",
+            )
+            ssl_context = None
+            if not bool(options["verify_tls"]):
+                ssl_context = ssl._create_unverified_context()
+            with urllib.request.urlopen(request, timeout=10, context=ssl_context) as response:
+                status = response.status
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(f"Test endpoint responded with status {status}".encode())
+        except Exception as exc:
+            logger.exception("Test endpoint failed: %s", exc)
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(f"Test endpoint failed: {exc}".encode())
+
+def start_http_server():
+    server = HTTPServer(("0.0.0.0", 8080), SimpleHandler)
+    logger.info("HTTP server started on port 8080 for manual export and test endpoint.")
+    server.serve_forever()
+
 def main():
     logger.info("Starting History Bulk Exporter add-on")
+
+    # Start HTTP server in a separate thread
+    http_thread = threading.Thread(target=start_http_server, daemon=True)
+    http_thread.start()
 
     options = load_options()
     headers = supervisor_headers()
