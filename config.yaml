@@ -8,6 +8,10 @@ arch:
   - amd64
   - armv7
   - i386
+ports:
+  "8080/tcp": 8080
+ports_description:
+  "8080/tcp": "Manual export and test endpoint"
 startup: services
 boot: auto
 init: false
@@ -15,12 +19,14 @@ hassio_api: true
 homeassistant_api: true
 options:
   upload_hour: 2
+  upload_minute: 0
   destination_url: "https://example.com/ingest"
   destination_key: "change-me"
   history_days: 1
   verify_tls: true
 schema:
   upload_hour: "int(0,23)"
+  upload_minute: "int(0,59)"
   destination_url: "url"
   destination_key: "str"
   history_days: "int(1,30)"

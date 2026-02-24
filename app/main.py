@@ -29,7 +29,7 @@ def load_options() -> dict:
     with open(OPTIONS_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    required = ["upload_hour", "destination_url", "destination_key", "history_days", "verify_tls"]
+    required = ["upload_hour", "upload_minute", "destination_url", "destination_key", "history_days", "verify_tls"]
     for key in required:
         if key not in data:
             raise ValueError(f"Missing required option: {key}")
@@ -38,6 +38,11 @@ def load_options() -> dict:
     upload_hour = data.get("upload_hour")
     if not isinstance(upload_hour, int) or not (0 <= upload_hour <= 23):
         raise ValueError("upload_hour must be an integer between 0 and 23")
+
+    # Enforce upload_minute is between 0 and 59
+    upload_minute = data.get("upload_minute")
+    if not isinstance(upload_minute, int) or not (0 <= upload_minute <= 59):
+        raise ValueError("upload_minute must be an integer between 0 and 59")
 
     return data
 
@@ -61,9 +66,9 @@ def get_homeassistant_timezone(headers: dict) -> ZoneInfo:
     return ZoneInfo(timezone_name)
 
 
-def next_run_at(hour: int, tz: ZoneInfo) -> dt.datetime:
+def next_run_at(hour: int, minute: int, tz: ZoneInfo) -> dt.datetime:
     now = dt.datetime.now(tz)
-    candidate = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if candidate <= now:
         candidate += dt.timedelta(days=1)
     return candidate
@@ -245,7 +250,7 @@ def main():
 
     while True:
         try:
-            schedule_time = next_run_at(int(options["upload_hour"]), tz)
+            schedule_time = next_run_at(int(options["upload_hour"]), int(options["upload_minute"]), tz)
             sleep_seconds = max(1, int((schedule_time - dt.datetime.now(tz)).total_seconds()))
             logger.info("Next export scheduled at %s", schedule_time.isoformat())
             time.sleep(sleep_seconds)
