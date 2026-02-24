@@ -75,26 +75,30 @@ def next_run_at(hour: int, minute: int, tz: ZoneInfo) -> dt.datetime:
 
 
 def fetch_history(headers: dict, start: dt.datetime, end: dt.datetime):
-    start_iso = start.isoformat()
-    end_iso = end.isoformat()
+    # Use UTC and URL-encode timestamps to avoid issues with + in timezone offsets
+    start_utc = start.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    end_utc = end.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
-    url = f"{SUPERVISOR_URL}/core/api/history/period/{start_iso}"
-    params = {
-        "end_time": end_iso,
-    }
+    start_encoded = urllib.parse.quote(start_utc, safe="")
+    end_encoded = urllib.parse.quote(end_utc, safe="")
 
-    logger.info("Fetching history window: %s -> %s", start_iso, end_iso)
-    query = urllib.parse.urlencode(params)
-    request_url = f"{url}?{query}"
+    request_url = f"{SUPERVISOR_URL}/core/api/history/period/{start_encoded}?end_time={end_encoded}"
+
+    logger.info("Fetching history window: %s -> %s", start_utc, end_utc)
     logger.info("Request URL: %s", request_url)
     return http_get_json(request_url, headers=headers, timeout=300)
 
 
 def http_get_json(url: str, headers: dict, timeout: int):
     request = urllib.request.Request(url=url, headers=headers, method="GET")
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        body = response.read().decode("utf-8")
-        return json.loads(body)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = response.read().decode("utf-8")
+            return json.loads(body)
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="replace")
+        logger.error("HTTP %s from %s: %s", exc.code, url, error_body)
+        raise
 
 
 def upload_payload(destination_url: str, destination_key: str, verify_tls: bool, payload: dict):
