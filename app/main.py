@@ -81,12 +81,12 @@ def fetch_history(headers: dict, start: dt.datetime, end: dt.datetime):
     url = f"{SUPERVISOR_URL}/core/api/history/period/{start_iso}"
     params = {
         "end_time": end_iso,
-        "no_attributes": False,
     }
 
     logger.info("Fetching history window: %s -> %s", start_iso, end_iso)
     query = urllib.parse.urlencode(params)
     request_url = f"{url}?{query}"
+    logger.info("Request URL: %s", request_url)
     return http_get_json(request_url, headers=headers, timeout=300)
 
 
