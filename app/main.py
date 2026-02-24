@@ -43,9 +43,10 @@ def load_options() -> dict:
 
 
 def supervisor_headers() -> dict:
+    logger.info("Available env vars: %s", list(os.environ.keys()))
     token = os.environ.get("SUPERVISOR_TOKEN")
     if not token:
-        raise RuntimeError("SUPERVISOR_TOKEN is not available")
+        raise RuntimeError("SUPERVISOR_TOKEN is not available. Check that hassio_api and homeassistant_api are set to true in config.yaml, and that the add-on was rebuilt/reinstalled after those changes.")
     return {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
