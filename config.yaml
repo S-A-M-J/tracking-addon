@@ -1,0 +1,27 @@
+name: "History Bulk Exporter"
+version: "0.1.0"
+slug: "history_bulk_exporter"
+description: "Export Home Assistant history once daily to a remote endpoint"
+url: "https://example.com/history-bulk-exporter"
+arch:
+  - aarch64
+  - amd64
+  - armv7
+  - i386
+startup: services
+boot: auto
+init: false
+hassio_api: true
+homeassistant_api: true
+options:
+  upload_hour: 2
+  destination_url: "https://example.com/ingest"
+  destination_key: "change-me"
+  history_days: 1
+  verify_tls: true
+schema:
+  upload_hour: "int(0,23)"
+  destination_url: "url"
+  destination_key: "str"
+  history_days: "int(1,30)"
+  verify_tls: "bool"
